@@ -31,6 +31,7 @@ pub fn run(config: Config) -> MyResult<()> {
         Action::Unzip => unzip(&content),
     };
     println!("Complete the file: {:?}", config.file_path);
+    println!("Output = {:?}", output);
     Ok(())
 }
 
@@ -92,12 +93,70 @@ enum Action {
     Unzip,
 }
 
+enum State {
+    Relax,
+    Run(u8, u8),
+}
+
 fn zip(input: &[u8]) -> Vec<u8> {
-    println!("Hello, zip!");
-    vec![]
+    fn write_output(output: &mut Vec<u8>, byte: u8, run: u8) {
+        match run {
+            0 => unreachable!(),
+            1 => output.push(byte),
+            _ => {
+                output.push(byte);
+                output.push(byte);
+                output.push(run);
+            }
+        }
+    }
+    use State::*;
+    let mut output = vec![];
+    let mut state = Relax;
+    for byte in input {
+        state = match state {
+            Relax => Run(*byte, 1),
+            Run(current, run) if run < u8::MAX && *byte == current => Run(current, run + 1),
+            Run(current, run) => {
+                write_output(&mut output, current, run);
+                Run(*byte, 1)
+            }
+        }
+    }
+    if let Run(byte, run) = state {
+        write_output(&mut output, byte, run);
+    }
+    output
 }
 
 fn unzip(input: &[u8]) -> Vec<u8> {
     println!("Hello, unzip!");
     vec![]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn zip_n_bytes() {
+        assert_eq!(vec![4, 4, 4], zip(&[4, 4, 4, 4]));
+    }
+
+    #[test]
+    fn compressed_longer_than_origin() {
+        assert_eq!(
+            vec![4, 4, 2, 11, 0, 0, 3, 21],
+            zip(&[4, 4, 11, 0, 0, 0, 21])
+        )
+    }
+
+    #[test]
+    fn wiki_rle_example() {
+        let example = b"WWWWWWWWWWWWBWWWWWWWWWWWWBBBWWWWWWWWWWWWWWWWWWWWWWWWBWWWWWWWWWWWWWW";
+        let compressed = [
+            b'W', b'W', 12, b'B', b'W', b'W', 12, b'B', b'B', 3, b'W', b'W', 24, b'B', b'W', b'W',
+            14,
+        ]; //"WW12BWW12BB3WW24BWW14"
+        assert_eq!(compressed, zip(example).as_slice());
+    }
 }
