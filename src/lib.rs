@@ -6,26 +6,60 @@ use crate::error::MyResult;
 use clap::{command, Arg};
 use error::MyError;
 use report::{Report, ReportBuilder};
-use std::{fs, io, path::Path};
+use std::{
+    ffi::OsString,
+    fs::{metadata, File},
+    io::{BufReader, BufWriter},
+    path::Path,
+};
 
 pub fn run(config: Config) -> MyResult<Report> {
-    let content = load_file(&config.file_path)?;
+    println!("Take: {:?}", config.file_path);
     let mut report = ReportBuilder::new();
+    let input = File::open(&config.file_path)?;
+    let input = BufReader::new(input);
+    let new_filename = make_filename(&config.file_path, config.action)?;
+    let output = File::create(&new_filename)?;
+    let output = BufWriter::new(output);
+    let input_info = metadata(&config.file_path)?;
     match config.action {
-        Action::Zip => {
-            report.set_compressed(rle_naive::encode(&content));
-            report.set_origin(content);
+        Action::Encode => {
+            rle_naive::pack(input, output)?;
+            let output_info = metadata(&new_filename)?;
+            report.set_compressed(output_info.len() as _);
+            report.set_origin(dbg!(input_info.len()) as _);
         }
-        Action::Unzip => {
-            report.set_origin(rle_naive::decode(&content));
-            report.set_compressed(content);
+        Action::Decode => {
+            rle_naive::unpack(input, output)?;
+            let output_info = metadata(&new_filename)?;
+            report.set_compressed(input_info.len() as _);
+            report.set_origin(output_info.len() as _);
         }
-    };
+    }
     report.finalize()
 }
 
-fn load_file(file_path: impl AsRef<Path>) -> io::Result<Vec<u8>> {
-    fs::read(file_path)
+fn make_filename(path: impl AsRef<Path>, action: Action) -> MyResult<OsString> {
+    let filename = path
+        .as_ref()
+        .file_name()
+        .ok_or(MyError::UnexpectedFilePath)?;
+    let mut filename = filename.to_os_string();
+    match action {
+        Action::Encode => filename.push(".rle"),
+        Action::Decode => {
+            filename = OsString::from(
+                filename
+                    .to_str()
+                    .unwrap()
+                    .to_string()
+                    .strip_suffix(".rle")
+                    .unwrap_or_else(|| filename.to_str().unwrap()),
+            );
+        }
+    };
+    println!("and do the work to the file: {:?}", filename);
+    Ok(filename)
 }
 
 #[derive(Debug)]
@@ -70,14 +104,14 @@ pub fn get_args() -> MyResult<Config> {
         file_path,
         action: match (matches.get_flag("compress"), matches.get_flag("decompress")) {
             (true, true) | (false, false) => return Err(Box::new(MyError::InvalidArguments)),
-            (true, false) => Action::Zip,
-            (false, true) => Action::Unzip,
+            (true, false) => Action::Encode,
+            (false, true) => Action::Decode,
         },
     })
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 enum Action {
-    Zip,
-    Unzip,
+    Encode,
+    Decode,
 }

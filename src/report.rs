@@ -3,34 +3,26 @@ use std::time::{Duration, Instant};
 use crate::error::{MyError, MyResult};
 
 pub struct Report {
-    origin: Vec<u8>,
-    compressed: Vec<u8>,
+    origin: usize,
+    compressed: usize,
     time_elapsed: Duration,
 }
 
 impl Report {
-    const REPORT_FILE_BYTES: usize = 512;
     pub fn finalize(&self) -> String {
         format!(
-            "Origin: {:?}\nCompressed: {:?}\nCompressed/Origin = {} / {}\nCompression rate: {:.3}\nTime to work: {:?}",
-            self.origin
-                .iter()
-                .take(Self::REPORT_FILE_BYTES)
-                .collect::<Vec<_>>(),
-            self.compressed
-                .iter()
-                .take(Self::REPORT_FILE_BYTES)
-                .collect::<Vec<_>>(),
-            self.compressed.len(), self.origin.len(),
-            self.compressed.len() as f64 / self.origin.len() as f64,
+            "Compressed/Origin = {} / {}\nCompression rate: {:.3}\nTime to work: {:?}",
+            self.compressed,
+            self.origin,
+            self.compressed as f64 / self.origin as f64,
             self.time_elapsed,
         )
     }
 }
 
 pub struct ReportBuilder {
-    origin: Option<Vec<u8>>,
-    compressed: Option<Vec<u8>>,
+    origin: Option<usize>,
+    compressed: Option<usize>,
     start: Instant,
 }
 
@@ -43,11 +35,11 @@ impl ReportBuilder {
         }
     }
 
-    pub fn set_origin(&mut self, origin: Vec<u8>) {
+    pub fn set_origin(&mut self, origin: usize) {
         self.origin = Some(origin);
     }
 
-    pub fn set_compressed(&mut self, compressed: Vec<u8>) {
+    pub fn set_compressed(&mut self, compressed: usize) {
         self.compressed = Some(compressed);
     }
 

@@ -6,6 +6,7 @@ pub type MyResult<T> = Result<T, Box<dyn Error>>;
 pub enum MyError {
     InvalidArguments,
     InvalidReport,
+    UnexpectedFilePath,
 }
 
 impl std::fmt::Display for MyError {
@@ -16,6 +17,7 @@ impl std::fmt::Display for MyError {
             match self {
                 MyError::InvalidArguments => "Invalid flags combination.",
                 MyError::InvalidReport => "Invalid report.",
+                MyError::UnexpectedFilePath => "Unexpected path in arguments",
             }
         )
     }

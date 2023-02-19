@@ -1,3 +1,7 @@
+use std::io::{self, Read, Write};
+
+const BUF_CAP: usize = 1024;
+
 struct Run(u8, u8);
 
 pub fn encode(input: &[u8]) -> Vec<u8> {
@@ -33,6 +37,83 @@ pub fn decode(input: &[u8]) -> Vec<u8> {
         output.extend([*byte].repeat(*count as _));
     }
     output
+}
+
+pub fn pack<R, W>(mut input: R, mut output: W) -> io::Result<()>
+where
+    R: Read,
+    W: Write,
+{
+    enum State {
+        Wait,
+        Run(u8, u8),
+    }
+    use State::*;
+
+    let mut buf = [0_u8; BUF_CAP];
+    let mut state = Wait;
+    while let Ok(size) = input.read(&mut buf) {
+        if size == 0 {
+            // Due to Read trait 0 means end-of-file
+            break;
+        }
+        assert!(size <= BUF_CAP);
+        for byte in &buf[..size] {
+            state = match state {
+                Wait => Run(*byte, 1),
+                Run(current, count) if *byte == current && count < u8::MAX => {
+                    Run(current, count + 1)
+                }
+                Run(current, count) => {
+                    let out = [count, current];
+                    output.write(&out)?;
+                    Run(*byte, 1)
+                }
+            }
+        }
+    }
+    if let Run(byte, count) = state {
+        let out = [count, byte];
+        output.write(&out)?;
+    }
+    Ok(())
+}
+
+pub fn unpack<R, W>(mut input: R, mut output: W) -> io::Result<()>
+where
+    R: Read,
+    W: Write,
+{
+    enum State {
+        Wait,
+        Count(u8),
+        Byte,
+    }
+    use State::*;
+
+    let mut buf = [0_u8; BUF_CAP];
+    let mut out = [0_u8; u8::MAX as _];
+    let mut state = Wait;
+    while let Ok(size) = input.read(&mut buf) {
+        if size == 0 {
+            // Due to Read trait 0 means end-of-file
+            break;
+        }
+        assert!(size <= BUF_CAP);
+        for byte in &buf[..size] {
+            state = match state {
+                Wait => Count(*byte),
+                Count(count) => {
+                    let buf = &mut out[..count as _];
+                    buf.fill(*byte);
+                    output.write(buf)?;
+                    Byte
+                }
+                Byte => Count(*byte),
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
