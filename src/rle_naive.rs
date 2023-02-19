@@ -39,12 +39,18 @@ pub fn decode(input: &[u8]) -> Vec<u8> {
 mod tests {
     use super::*;
     #[test]
+    fn test_trivial() {
+        assert_eq!(Vec::<u8>::new(), encode(&[]));
+        assert_eq!(Vec::<u8>::new(), decode(&[]))
+    }
+
+    #[test]
     fn zip_n_bytes() {
         assert_eq!(vec![4, 4], encode(&[4, 4, 4, 4]));
     }
 
     #[test]
-    fn compressed_longer_than_origin() {
+    fn compress() {
         assert_eq!(
             vec![2, 4, 1, 11, 3, 0, 1, 21],
             encode(&[4, 4, 11, 0, 0, 0, 21])
@@ -58,6 +64,7 @@ mod tests {
             12, b'W', 1, b'B', 12, b'W', 3, b'B', 24, b'W', 1, b'B', 14, b'W',
         ]; //12'W'1'B'12'W',3,'B',24,'W',1,'B',14,'W'
         assert_eq!(compressed, encode(example).as_slice());
+        assert_eq!(example, decode(&compressed).as_slice())
     }
 
     #[test]
@@ -66,5 +73,10 @@ mod tests {
         let encoded = encode(origin);
         let decoded = decode(&encoded);
         assert_eq!(origin, decoded.as_slice());
+    }
+
+    #[test]
+    fn from_compressed() {
+        assert_eq!(vec![42, 4, 4, 4, 4, 4, 101], decode(&[1, 42, 5, 4, 1, 101]));
     }
 }
