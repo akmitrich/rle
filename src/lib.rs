@@ -1,5 +1,6 @@
 mod error;
 mod report;
+pub mod rle_adv;
 pub mod rle_naive;
 
 use crate::error::MyResult;
@@ -24,7 +25,10 @@ pub fn run(config: Config) -> MyResult<Report> {
     let input_info = metadata(&config.file_path)?;
     match config.action {
         Action::Encode => {
-            rle_naive::pack(input, output)?;
+            match config.method {
+                Method::Naive => rle_naive::pack(input, output)?,
+                Method::Advanced => rle_adv::encode(input, output)?,
+            }
             let output_info = metadata(&new_filename)?;
             report.set_compressed(output_info.len() as _);
             report.set_origin(dbg!(input_info.len()) as _);
@@ -66,6 +70,7 @@ fn make_filename(path: impl AsRef<Path>, action: Action) -> MyResult<OsString> {
 pub struct Config {
     file_path: String,
     action: Action,
+    method: Method,
 }
 
 pub fn get_args() -> MyResult<Config> {
@@ -92,6 +97,12 @@ pub fn get_args() -> MyResult<Config> {
                 .num_args(0)
                 .short('u'),
         )
+        .arg(
+            Arg::new("naive")
+                .help("Use 'naive' encoding")
+                .num_args(0)
+                .short('n'),
+        )
         .get_matches();
     let file_path = matches
         .get_raw("filename")
@@ -107,6 +118,10 @@ pub fn get_args() -> MyResult<Config> {
             (true, false) => Action::Encode,
             (false, true) => Action::Decode,
         },
+        method: match matches.get_flag("naive") {
+            true => Method::Naive,
+            false => Method::Advanced,
+        },
     })
 }
 
@@ -114,4 +129,10 @@ pub fn get_args() -> MyResult<Config> {
 enum Action {
     Encode,
     Decode,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Method {
+    Naive,
+    Advanced,
 }
